@@ -16,7 +16,7 @@ struct TraceEntry {
 struct PageTableEntry{
     int pfn;
     int entry_time, last_access_time;
-    bool valid, free, dirty;
+    bool valid, dirty;
 };
 
 struct TraceEntry* trace;
@@ -85,7 +85,6 @@ void add_page(int pfn, bool dirty) {
     pages[free_idx].pfn = pfn;
     pages[free_idx].valid = true;
     pages[free_idx].dirty = dirty;
-    pages[free_idx].free = false;
     pages[free_idx].entry_time = time;
 }
 
@@ -108,7 +107,7 @@ int evict_page(int pfn) {
     if (is_verbose) {
         print_verbose(pfn, pages[evict_idx].pfn, pages[evict_idx].dirty);
     }
-    pages[evict_idx].free = true;
+    pages[evict_idx].valid = false;
     return evict_idx;
 }
 
@@ -152,7 +151,7 @@ int lru_evict() {
 
 int random_evict(){
     int rand_idx = rand() % pages_len;
-    while (pages[rand_idx].free) {
+    while (!pages[rand_idx].valid) {
         rand_idx = rand() % pages_len;
     }
     return rand_idx;
@@ -160,7 +159,7 @@ int random_evict(){
 
 int get_free_idx() {
     for (int i = 0; i < pages_len; i++) {
-        if (pages[i].free)
+        if (!pages[i].valid)
             return i;
     }
     return -1;
@@ -168,7 +167,7 @@ int get_free_idx() {
 
 int get_pfn_idx(pfn) {
     for (int i = 0; i < pages_len; i++) {
-        if (pages[i].pfn == pfn && !pages[i].free)
+        if (pages[i].pfn == pfn && pages[i].valid)
             return i;
     }
     return -1;
@@ -186,7 +185,7 @@ void setup(int argc, char** argv){
     pages_len = atoi(argv[2]);
     pages = malloc(sizeof(struct PageTableEntry) * pages_len);
     for (int i = 0; i < pages_len; i++) {
-        pages[i].free = true;
+        pages[i].valid = false;
     }
     strategy = get_strategy(argv[3]);
 }
