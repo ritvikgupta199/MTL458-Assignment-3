@@ -23,6 +23,7 @@ struct TraceEntry* trace;
 struct PageTableEntry* pages;
 int trace_len = -1, pages_len = -1, strategy = -1;
 int time = 0;
+int num_mem_accesses = 0, num_misses = 0, num_writes = 0, num_drops = 0;
 bool is_verbose = false;
 
 
@@ -44,6 +45,11 @@ int clock_evict();
 int lru_evict();
 int random_evict();
 
+void inc_mem_accesses();
+void inc_misses();
+void inc_writes();
+void inc_drops();
+
 // args of format ./frame <input_file> <n> <strategy>
 int main(int argc, char** argv) {
     setup(argc, argv);
@@ -55,23 +61,24 @@ int main(int argc, char** argv) {
         // printf("%d ** %c\n", trace[i].pfn, trace[i].rw);
         process_memory_access(trace[i].pfn, trace[i].rw, i);
         time++;
+        inc_mem_accesses();
     }
+
+    printf("Number of memory accesses: %d\n", num_mem_accesses);
+    printf("Number of misses: %d\n", num_misses);
+    printf("Number of writes: %d\n", num_writes);
+    printf("Number of drops: %d\n", num_drops);
 }
 
 void process_memory_access(int pfn, char rw, int idx) {
     int pfn_idx = get_pfn_idx(pfn);
-    if (rw == 'R') {
-        if (pfn_idx == -1) {
-            add_page(pfn, false);
-        }
+    if (pfn_idx == -1) {
+        add_page(pfn, rw == 'W');
+        inc_misses();
     } else {
-        if (pfn_idx == -1) {
-            add_page(pfn, true);
-        } else {
-            pages[pfn_idx].dirty = true;
-        }
+        pages[pfn_idx].dirty = rw == 'W';
+        pages[pfn_idx].last_access_time = time;
     }
-    pages[pfn_idx].last_access_time = time;
 }
 
 void add_page(int pfn, bool dirty) {
@@ -86,6 +93,7 @@ void add_page(int pfn, bool dirty) {
     pages[free_idx].valid = true;
     pages[free_idx].dirty = dirty;
     pages[free_idx].entry_time = time;
+    pages[free_idx].last_access_time = time;
 }
 
 int evict_page(int pfn) {
@@ -103,6 +111,11 @@ int evict_page(int pfn) {
     } else {
         printf("Invalid Strategy\n");
         exit(1);
+    }
+    if (pages[evict_idx].dirty) {
+        inc_writes();
+    } else {
+        inc_drops();
     }
     if (is_verbose) {
         print_verbose(pfn, pages[evict_idx].pfn, pages[evict_idx].dirty);
@@ -172,6 +185,11 @@ int get_pfn_idx(pfn) {
     }
     return -1;
 }
+
+void inc_mem_accesses() {num_mem_accesses++;}
+void inc_misses() {num_misses++;}
+void inc_writes() {num_writes++;}
+void inc_drops() {num_drops++;}
 
 void setup(int argc, char** argv){
     srand(RANDOM_SEED);
