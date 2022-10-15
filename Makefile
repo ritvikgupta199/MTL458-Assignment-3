@@ -18,4 +18,4 @@ all:
 	rm -f frames
 	$(COMPILER) frames.c -o frames
 	clear
-	./frames example_trace.in 4 LRU
+	./frames trace.in 4 LRU -verbose
