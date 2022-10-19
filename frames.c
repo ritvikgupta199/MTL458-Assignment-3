@@ -136,10 +136,12 @@ void print_verbose(int add_pfn, int evict_pfn, bool evict_dirty) {
 }
 
 int opt_evict() {
-    int furthest_idx = -1, furthest_time = INT32_MAX;
+    int furthest_idx = -1, furthest_time = 0;
     for (int i = 0; i < pages_len; i++) {
-        if (!pages[i].valid) continue;
         int next_time = get_next_usage(pages[i].pfn);
+        if (next_time == -1) {
+            return i;
+        }
         if (next_time > furthest_time) {
             furthest_time = next_time;
             furthest_idx = i;
@@ -154,7 +156,7 @@ int get_next_usage(int pfn) {
             return i;
         }
     }
-    return INT32_MAX;
+    return -1;
 }
 
 int fifo_evict() {
