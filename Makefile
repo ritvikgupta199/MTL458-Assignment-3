@@ -18,4 +18,4 @@ all:
 	rm -f frames
 	$(COMPILER) frames.c -o frames
 	clear
-	./frames trace.in 4 LRU -verbose
+	./frames huge_trace.in 10 OPT

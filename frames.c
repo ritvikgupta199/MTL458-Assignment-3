@@ -16,13 +16,13 @@ struct TraceEntry {
 struct PageTableEntry{
     int pfn;
     int entry_time, last_access_time;
-    bool valid, dirty;
+    bool valid, dirty, use;
 };
 
 struct TraceEntry* trace;
 struct PageTableEntry* pages;
 int trace_len = -1, pages_len = -1, strategy = -1;
-int time = 0;
+int time = 0, clock_hand = 0;
 int num_mem_accesses = 0, num_misses = 0, num_writes = 0, num_drops = 0;
 bool is_verbose = false;
 
@@ -38,6 +38,7 @@ int get_free_idx();
 int get_pfn_idx(int pfn);
 int evict_page(int pfn);
 void print_verbose(int add_pfn, int evict_pfn, bool evict_dirty);
+int get_next_usage(int pfn);
 
 int opt_evict();
 int fifo_evict();
@@ -58,10 +59,9 @@ int main(int argc, char** argv) {
     read_file(filename);
 
     for (int i = 0; i < trace_len; i++) {
-        // printf("%d ** %c\n", trace[i].pfn, trace[i].rw);
         process_memory_access(trace[i].pfn, trace[i].rw, i);
-        time++;
         inc_mem_accesses();
+        time++;
     }
 
     printf("Number of memory accesses: %d\n", num_mem_accesses);
@@ -76,14 +76,16 @@ void process_memory_access(int pfn, char rw, int idx) {
         add_page(pfn, rw == 'W');
         inc_misses();
     } else {
-        pages[pfn_idx].dirty = rw == 'W';
+        if (rw == 'W'){
+            pages[pfn_idx].dirty = true;
+        }
         pages[pfn_idx].last_access_time = time;
+        pages[pfn_idx].use = true;
     }
 }
 
 void add_page(int pfn, bool dirty) {
     int free_idx = get_free_idx();
-    // printf("pfn: %d free_idx: %d\n", pfn, free_idx);
     if (free_idx == -1) {
         // Page Fault
         // Evict Page
@@ -91,6 +93,7 @@ void add_page(int pfn, bool dirty) {
     }
     pages[free_idx].pfn = pfn;
     pages[free_idx].valid = true;
+    pages[free_idx].use = true;
     pages[free_idx].dirty = dirty;
     pages[free_idx].entry_time = time;
     pages[free_idx].last_access_time = time;
@@ -132,11 +135,29 @@ void print_verbose(int add_pfn, int evict_pfn, bool evict_dirty) {
     }
 }
 
-int opt_evict(){
-    exit(-1);
+int opt_evict() {
+    int furthest_idx = -1, furthest_time = INT32_MAX;
+    for (int i = 0; i < pages_len; i++) {
+        if (!pages[i].valid) continue;
+        int next_time = get_next_usage(pages[i].pfn);
+        if (next_time > furthest_time) {
+            furthest_time = next_time;
+            furthest_idx = i;
+        }
+    }
+    return furthest_idx;
 }
 
-int fifo_evict(){
+int get_next_usage(int pfn) {
+    for (int i = time + 1; i < trace_len; i++) {
+        if (trace[i].pfn == pfn) {
+            return i;
+        }
+    }
+    return INT32_MAX;
+}
+
+int fifo_evict() {
     int min_time = time, min_idx = -1;
     for (int i = 0; i < pages_len; i++) {
         if (pages[i].valid && pages[i].entry_time < min_time) {
@@ -147,8 +168,14 @@ int fifo_evict(){
     return min_idx;
 }
 
-int clock_evict(){
-    exit(-1);
+int clock_evict() {
+    while (pages[clock_hand].use) {
+        pages[clock_hand].use = false;
+        clock_hand = (clock_hand + 1) % pages_len;
+    }
+    int idx = clock_hand;
+    clock_hand = (clock_hand + 1) % pages_len;
+    return idx;
 }
 
 int lru_evict() {
@@ -162,7 +189,7 @@ int lru_evict() {
     return min_idx;
 }
 
-int random_evict(){
+int random_evict() {
     int rand_idx = rand() % pages_len;
     while (!pages[rand_idx].valid) {
         rand_idx = rand() % pages_len;
@@ -224,7 +251,7 @@ void read_file(char* filename) {
         char rw = tokens[1][0];
         if (i == t_size - 1) {
             t_size += INIT_TRACE_LEN;
-            tokens = realloc(tokens, t_size * sizeof(struct TraceEntry));
+            trace = realloc(trace, t_size * sizeof(struct TraceEntry));
         }
         trace[i].pfn = pfn;
         trace[i++].rw = rw;

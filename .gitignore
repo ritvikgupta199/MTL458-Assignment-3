@@ -9,6 +9,9 @@
 
 frames
 
+huge_trace.in
+.DS_Store
+
 # Linker output
 *.ilk
 *.map
