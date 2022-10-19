@@ -129,9 +129,9 @@ int evict_page(int pfn) {
 
 void print_verbose(int add_pfn, int evict_pfn, bool evict_dirty) {
     if (evict_dirty) {
-        printf("Page 0x%05X was read from disk, page 0x%05X was written to the disk.\n", add_pfn, evict_pfn);
+        printf("Page 0x%05x was read from disk, page 0x%05x was written to the disk.\n", add_pfn, evict_pfn);
     } else {
-        printf("Page 0x%05X was read from disk, page 0x%05X was dropped (it was not dirty).\n", add_pfn, evict_pfn);
+        printf("Page 0x%05x was read from disk, page 0x%05x was dropped (it was not dirty).\n", add_pfn, evict_pfn);
     }
 }
 
